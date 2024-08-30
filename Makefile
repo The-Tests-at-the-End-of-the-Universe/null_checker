@@ -50,7 +50,7 @@ fclean: clean
 
 #Link
 $(TARGETDIR)/$(TARGET): 
-	gcc $(CFLAGS) -fPIC -shared -o $(TARGET) $(SOURCES) -ldl -pthread
+	gcc $(CFLAGS) -fPIC -g -shared -o $(TARGET) $(SOURCES) -ldl -pthread -lbacktrace
 
 # #Link
 # $(TARGETDIR)/$(TARGET) : $(OBJECTS)

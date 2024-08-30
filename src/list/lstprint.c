@@ -6,7 +6,7 @@
 /*   By: mynodeus <mynodeus@student.42.fr>            +#+                     */
 /*                                                   +#+                      */
 /*   Created: 2024/01/23 13:56:22 by spenning      #+#    #+#                 */
-/*   Updated: 2024/08/30 16:02:23 by spenning      ########   odam.nl         */
+/*   Updated: 2024/08/30 16:07:53 by spenning      ########   odam.nl         */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -19,7 +19,7 @@ void	lstprint(t_mallocs *lst)
 	temp = lst;
 	while (temp != NULL)
 	{
-		printf("num: %d\n", temp->num);
+		printf("malloc num: %d\n", temp->num);
 		temp = temp->next;
 	}
 }
