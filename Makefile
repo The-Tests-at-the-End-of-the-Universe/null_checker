@@ -15,8 +15,7 @@ TEST        := test.c
 TEST_EXE    := test
 
 #Flags, Libraries and Includes
-CFLAGS      := -Wall -Werror -Wextra 
-
+CFLAGS      := -I./inc/ -Wall -Werror -Wextra 
 
 #---------------------------------------------------------------------------------
 #DO NOT EDIT BELOW THIS LINE
@@ -51,8 +50,7 @@ fclean: clean
 
 #Link
 $(TARGETDIR)/$(TARGET): 
-	echo $(SOURCES)
-	gcc -fPIC -shared -o $(TARGET) $(SOURCES) -ldl -pthread
+	gcc $(CFLAGS) -fPIC -shared -o $(TARGET) $(SOURCES) -ldl -pthread
 
 # #Link
 # $(TARGETDIR)/$(TARGET) : $(OBJECTS)

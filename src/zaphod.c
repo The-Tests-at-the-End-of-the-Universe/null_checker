@@ -1,9 +1,16 @@
-#define _GNU_SOURCE
-#include <stdio.h>
-#include <stdlib.h>
-#include <dlfcn.h>
-#include <pthread.h>
-#include <unistd.h>
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        ::::::::            */
+/*   zaphod.c                                           :+:    :+:            */
+/*                                                     +:+                    */
+/*   By: spenning <spenning@student.codam.nl>         +#+                     */
+/*                                                   +#+                      */
+/*   Created: 2024/08/30 15:42:45 by spenning      #+#    #+#                 */
+/*   Updated: 2024/08/30 16:05:50 by spenning      ########   odam.nl         */
+/*                                                                            */
+/* ************************************************************************** */
+
+#include <zaphod.h>
 
 // acknowledgement https://www.vishalchovatiya.com/hack-c-cpp-application-using-rtld-next-with-an-easy-example/
 // compilation 
@@ -15,6 +22,7 @@
 static void *(*real_malloc)(size_t) = NULL;
 static int (*main_orig)(int, char **, char **);
 static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
+static struct s_data * data_ptr = NULL;
 
 // Constructor function to initialize real_malloc
 __attribute__((constructor))
@@ -30,7 +38,6 @@ void init_malloc() {
 	pthread_mutex_unlock(&lock);
 }
 
-
 // Overriding malloc
 void *malloc(size_t size)
 {
@@ -40,6 +47,8 @@ void *malloc(size_t size)
 		write(STDERR_FILENO, error_msg, sizeof(error_msg));
 		return NULL;
 	}
+	data_ptr->malloc_count++;
+	lstadd(data_ptr);
 	write(STDOUT_FILENO, "malloc\n", 7);
 	ret = real_malloc(size);
 	return (ret); // Call the original malloc
@@ -54,9 +63,14 @@ void __attribute__((destructor)) finalize() {
 
 int main_hook(int argc, char **argv, char **envp)
 {
+	t_data	data;
+
+	memset(&data, 0, sizeof(t_data));
+	data_ptr = &data;
 	printf("--- Before main ---\n");
 	int ret = main_orig(argc, argv, envp);
 	printf("--- After main ----\n");
+	lstprint(data.mallocs);
 	printf("main() returned %d\n", ret);
 	return ret;
 }
