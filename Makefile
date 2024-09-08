@@ -27,6 +27,7 @@ OBJECTS     := $(patsubst $(SRCDIR)/%,$(OBJDIR)/%,$(SOURCES:.$(SRCEXT)=.$(OBJEXT
 
 all: $(TARGETDIR)/$(TARGET)
 
+
 test:
 	cc $(TEST) -o $(TEST_EXE)
 	LD_PRELOAD=./$(TARGET) ./$(TEST_EXE)
