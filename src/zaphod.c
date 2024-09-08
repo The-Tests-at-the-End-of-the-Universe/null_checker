@@ -6,7 +6,7 @@
 /*   By: spenning <spenning@student.codam.nl>         +#+                     */
 /*                                                   +#+                      */
 /*   Created: 2024/08/30 15:42:45 by spenning      #+#    #+#                 */
-/*   Updated: 2024/09/08 21:17:37 by mynodeus      ########   odam.nl         */
+/*   Updated: 2024/09/08 21:43:05 by mynodeus      ########   odam.nl         */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -136,9 +136,12 @@ void print_backtrace(void)
 }
 
 // Overriding malloc
+// TODO: try with dladdr to get symbol name at address https://stackoverflow.com/questions/31148272/how-can-my-c-code-find-the-symbol-corresponding-to-an-address-at-run-time-in-li
+// TODO: try to parse elf format and find symbol name based on memory address: https://stackoverflow.com/questions/34960383/how-read-elf-header-in-c / https://www.linkedin.com/pulse/elf-files-how-handle-them-c-tariq-abu-elhamd/
 void *malloc(size_t size)
 {
 	void		*ret;
+	void		*return_address;
 	static int	internal_malloc = 0;
 	// Dl_info info_dl;
 
@@ -156,8 +159,8 @@ void *malloc(size_t size)
 		backtrace_full(state, 0, full_callback, error_callback, NULL);
 		write(1, "\n", 1);
 		print_backtrace();
-		// ret = __builtin_return_address(0);
-		// fprintf (stderr, "Caller name: %p\n", ret);
+		return_address = __builtin_return_address(0);
+		fprintf (stderr, "Caller name: %p\n", return_address);
 		// if(dladdr(ret, &info_dl))
 		// 	fprintf( stderr, "symbol name: %s\n", info_dl.dli_sname);
 		write(STDOUT_FILENO, "malloc\n", 7);
