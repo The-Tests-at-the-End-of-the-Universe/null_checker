@@ -6,7 +6,7 @@
 /*   By: spenning <spenning@student.codam.nl>         +#+                     */
 /*                                                   +#+                      */
 /*   Created: 2024/08/30 15:42:45 by spenning      #+#    #+#                 */
-/*   Updated: 2024/09/08 21:43:05 by mynodeus      ########   odam.nl         */
+/*   Updated: 2024/10/21 18:25:58 by mynodeus      ########   odam.nl         */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -136,15 +136,32 @@ void print_backtrace(void)
 }
 
 // Overriding malloc
-// TODO: try with dladdr to get symbol name at address https://stackoverflow.com/questions/31148272/how-can-my-c-code-find-the-symbol-corresponding-to-an-address-at-run-time-in-li
-// TODO: try to parse elf format and find symbol name based on memory address: https://stackoverflow.com/questions/34960383/how-read-elf-header-in-c / https://www.linkedin.com/pulse/elf-files-how-handle-them-c-tariq-abu-elhamd/
+// take out GI_UI_FILE_DOALLOCATE malloc
 void *malloc(size_t size)
 {
 	void		*ret;
-	void		*return_address;
 	static int	internal_malloc = 0;
-	// Dl_info info_dl;
-
+	int i;
+	i = 0;
+	t_mallocs *temp;
+	if (data_ptr->null_check == 1)
+	{
+		temp = data_ptr->mallocs;
+		data_ptr->null_check_count++;
+		while (temp)
+		{
+			dprintf(2 ,"iteration %d in child %d nullcheck_count %d \n", i, getpid(), data_ptr->null_check_count);
+			if (temp->fail == 1 && data_ptr->null_check_count == temp->num)
+			{
+				dprintf(2 ,"here in malloc %d in child %d\n", temp->num, getpid());
+				return (NULL);
+			}
+			i++;
+			temp = temp->next;
+		}
+		ret = real_malloc(size);
+		return (ret);
+	}
 	if (real_malloc == NULL)
 	{
 		const char *error_msg = "malloc called before initialization\n";
@@ -154,37 +171,111 @@ void *malloc(size_t size)
 	if (internal_malloc == 0)
 	{
 		internal_malloc = 1;
-		data_ptr->malloc_count++;
 		lstadd(data_ptr);
+		data_ptr->malloc_count++;
 		backtrace_full(state, 0, full_callback, error_callback, NULL);
-		write(1, "\n", 1);
-		print_backtrace();
-		return_address = __builtin_return_address(0);
-		fprintf (stderr, "Caller name: %p\n", return_address);
-		// if(dladdr(ret, &info_dl))
-		// 	fprintf( stderr, "symbol name: %s\n", info_dl.dli_sname);
-		write(STDOUT_FILENO, "malloc\n", 7);
+		// write(1, "\n", 1);
+		// print_backtrace();
 		internal_malloc = 0;
 	}
 	ret = real_malloc(size);
 	return (ret); // Call the original malloc
 }
 
-
-
-int main_hook(int argc, char **argv, char **envp)
+int main_hook_count(t_data *data, int argc, char **argv, char **envp)
 {
-	t_data	data;
-
-	memset(&data, 0, sizeof(t_data));
-	data_ptr = &data;
 	state = backtrace_create_state(NULL, 0, error_callback, NULL);
 	printf("--- Before main ---\n");
 	int ret = main_orig(argc, argv, envp);
 	printf("--- After main ----\n");
-	lstprint(data.mallocs);
-	printf("main() returned %d\n", ret);
-	return ret;
+	lstprint(data->mallocs);
+	printf("number one main() returned %d\n", ret);
+	return (data->malloc_count);
+}
+
+void	fork_tests(pid_t *child, t_mallocs data, int argc, char **argv, char **envp)
+{
+	int	ret;
+	*child = fork();
+	if (*child == -1)
+		exit(1);
+	if (*child == 0)
+	{
+		dprintf(2, "pid %d\n", getpid());
+		ret = main_orig(argc, argv, envp);
+		printf("number %d main() returned %d\n", data.num , ret);
+		exit(0);
+	}
+}
+
+
+int wait_child(int pid)
+{
+	int got_pid;
+	int status;
+
+	got_pid = waitpid(pid, &status, 0);
+	if ((got_pid == -1) && (errno != EINTR))
+	{
+		perror("waitpid");
+		exit(1);
+	}
+	else if (WIFSIGNALED(status))
+	{
+		if (WTERMSIG(status) == SIGSEGV)
+			return (1);
+	}
+	return (0);
+}
+
+void main_hook_null_check(int count, int argc, char **argv, char **envp)
+{
+	int i;
+	t_mallocs *temp;
+	pid_t	*childs;
+
+
+	i = 0;
+
+	temp = data_ptr->mallocs;
+	childs = calloc(1, sizeof(childs)* count);
+	// create childs
+	printf("create childs\n");
+	printf("count: %d\n", count);
+	while (i < count)
+	{
+		dprintf(2, "child number %d\n", i);
+		temp->fail = 1;
+		fork_tests(&childs[i], *temp, argc, argv, envp);
+		temp->fail = 0;
+		temp = temp->next;
+		i++;
+	}
+	i = 0;
+	while (i < count)
+	{
+		if (wait_child(childs[i]))
+			printf("SEGFAULTTTT in %d\n", i);
+		i++;
+	}
+}
+
+
+
+
+int main_hook(int argc, char **argv, char **envp)
+{
+	int ret;
+	t_data	data;
+
+	memset(&data, 0, sizeof(t_data));
+	data_ptr = &data;
+	ret = main_hook_count(&data, argc, argv, envp);
+	data.null_check = 1;
+	printf("going into null_check\n");
+	if (data.null_check)
+		main_hook_null_check(ret, argc, argv, envp);
+	return (0);
 }
 
 int __libc_start_main(
@@ -203,5 +294,5 @@ int __libc_start_main(
 	typeof(&__libc_start_main) orig = dlsym(RTLD_NEXT, "__libc_start_main");
 
 	/* ... and call it with our custom main function */
-	return orig(main_hook, argc, argv, init, fini, rtld_fini, stack_end);
+	return (orig(main_hook, argc, argv, init, fini, rtld_fini, stack_end));
 }

@@ -6,7 +6,7 @@
 /*   By: mynodeus <mynodeus@student.42.fr>            +#+                     */
 /*                                                   +#+                      */
 /*   Created: 2023/10/21 23:03:23 by spenning      #+#    #+#                 */
-/*   Updated: 2024/09/08 20:55:33 by mynodeus      ########   odam.nl         */
+/*   Updated: 2024/10/21 17:46:08 by mynodeus      ########   odam.nl         */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -20,11 +20,14 @@
 #include <pthread.h>
 #include <unistd.h>
 #include <string.h>
+#include <errno.h>
+#include <sys/wait.h>
 
 
 typedef struct s_mallocs
 {
 	int					num;
+	int					fail;
 	struct s_mallocs	*next;
 } t_mallocs;
 
@@ -33,6 +36,8 @@ typedef struct s_data
 {
 	int					malloc_count;
 	struct s_mallocs	*mallocs;
+	int					null_check;
+	int					null_check_count;
 }	t_data;
 
 t_mallocs	*lstnew(t_data *data);
