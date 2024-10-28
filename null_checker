@@ -48,6 +48,7 @@ usage_fatal() { error "$*"; usage >&2; exit 1; }
 debug=0
 print_bt=0
 args=""
+local_dir=$(dirname $0)
 
 # parse options
 while [ "$#" -gt 0 ]; do
@@ -109,5 +110,5 @@ if [[ $print_bt == 1 ]]; then
 export $pbt_arg
 fi
 
-make -C ./ re
-LD_PRELOAD=./zaphod.so $exe
+make -C $local_dir re
+LD_PRELOAD=$local_dir/zaphod.so $exe
