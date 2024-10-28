@@ -6,7 +6,7 @@
 /*   By: mynodeus <mynodeus@student.42.fr>            +#+                     */
 /*                                                   +#+                      */
 /*   Created: 2023/10/21 23:03:23 by spenning      #+#    #+#                 */
-/*   Updated: 2024/10/28 19:03:47 by mynodeus      ########   odam.nl         */
+/*   Updated: 2024/10/28 19:16:12 by mynodeus      ########   odam.nl         */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -53,6 +53,7 @@ typedef struct s_data
 	int					null_check_count; // integer used to keep track of which malloc has to be nulled
 	int					exit_code; // exit code for end of program
 	int					debug; // if set to 1, then program will print internal debug messages
+	int					print_bt; // if set to 1, then program will print backtrace of failed malloc
 }	t_data;
 
 void		print_backtrace(t_mallocs *node);

@@ -6,7 +6,7 @@
 /*   By: spenning <spenning@student.codam.nl>         +#+                     */
 /*                                                   +#+                      */
 /*   Created: 2024/08/30 15:42:45 by spenning      #+#    #+#                 */
-/*   Updated: 2024/10/28 19:15:01 by mynodeus      ########   odam.nl         */
+/*   Updated: 2024/10/28 19:18:45 by mynodeus      ########   odam.nl         */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -73,7 +73,7 @@ void __attribute__((destructor)) finalize()
 {
 	pthread_mutex_lock(&lock);
 	if (data_ptr->debug)
-		write (STDOUT_FILENO, RED "destructor\n" RESET, 16);
+		// write (STDOUT_FILENO, RED "destructor\n" RESET, 16);
 	pthread_mutex_unlock(&lock);
 }
 
@@ -144,7 +144,8 @@ void	print_backtrace(t_mallocs *node)
 	fprintf(stderr, RED "malloc #%d unprotected\n" RESET, node->num);
 	for (int j = 1; node->backtrace[j] != NULL; j++)
 	{
-		fprintf(stderr, MAG "      %s" RESET, node->backtrace[j]);
+		if (data_ptr->print_bt)
+			fprintf(stderr, MAG "      %s" RESET, node->backtrace[j]);
 	}
 }
 
@@ -164,10 +165,10 @@ void *malloc(size_t size)
 		data_ptr->null_check_count++;
 		while (temp)
 		{
-			// dprintf(2 ,"iteration %d in child %d nullcheck_count %d \n", i, getpid(), data_ptr->null_check_count);
+			// debug(BLU"\titeration %d in child %d nullcheck_count %d \n" RESET, i, getpid(), data_ptr->null_check_count);
 			if (temp->fail == 1 && data_ptr->null_check_count == temp->num)
 			{
-				// dprintf(2 ,"here in malloc %d in child %d\n", temp->num, getpid());
+				// debug(BLU"\there in malloc %d in child %d\n" RESET, temp->num, getpid());
 				return (NULL);
 			}
 			i++;
@@ -316,7 +317,6 @@ int main_hook(int argc, char **argv, char **envp)
 	t_data	data;
 
 	memset(&data, 0, sizeof(t_data));
-	data.debug = 1;
 	data_ptr = &data;
 	debug(RED "DEBUG MODE\n\n" RESET);
 	ret = main_hook_count(&data, argc, argv, envp);
