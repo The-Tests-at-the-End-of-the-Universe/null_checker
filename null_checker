@@ -32,7 +32,7 @@ Arguments:
 	This will run the null_checker in debug mode. This will
 	print internal debug messages
 
-  -p, --print-bt
+  -b, --print-bt
 	This will print stack/backtrace information over where in the 
 	executable there was an error.
 
