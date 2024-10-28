@@ -6,7 +6,7 @@
 /*   By: spenning <spenning@student.codam.nl>         +#+                     */
 /*                                                   +#+                      */
 /*   Created: 2024/08/30 15:42:45 by spenning      #+#    #+#                 */
-/*   Updated: 2024/10/21 18:25:58 by mynodeus      ########   odam.nl         */
+/*   Updated: 2024/10/28 17:03:34 by mynodeus      ########   odam.nl         */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -256,6 +256,7 @@ void main_hook_null_check(int count, int argc, char **argv, char **envp)
 	{
 		if (wait_child(childs[i]))
 			printf("SEGFAULTTTT in %d\n", i);
+		data_ptr->exit_code = 1;
 		i++;
 	}
 }
@@ -275,7 +276,7 @@ int main_hook(int argc, char **argv, char **envp)
 	printf("going into null_check\n");
 	if (data.null_check)
 		main_hook_null_check(ret, argc, argv, envp);
-	return (0);
+	return (data_ptr->exit_code);
 }
 
 int __libc_start_main(

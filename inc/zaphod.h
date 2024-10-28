@@ -6,7 +6,7 @@
 /*   By: mynodeus <mynodeus@student.42.fr>            +#+                     */
 /*                                                   +#+                      */
 /*   Created: 2023/10/21 23:03:23 by spenning      #+#    #+#                 */
-/*   Updated: 2024/10/21 17:46:08 by mynodeus      ########   odam.nl         */
+/*   Updated: 2024/10/28 17:02:02 by mynodeus      ########   odam.nl         */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -38,6 +38,7 @@ typedef struct s_data
 	struct s_mallocs	*mallocs;
 	int					null_check;
 	int					null_check_count;
+	int					exit_code;
 }	t_data;
 
 t_mallocs	*lstnew(t_data *data);
