@@ -6,7 +6,7 @@
 /*   By: spenning <spenning@student.codam.nl>         +#+                     */
 /*                                                   +#+                      */
 /*   Created: 2024/08/30 15:42:45 by spenning      #+#    #+#                 */
-/*   Updated: 2024/10/28 19:18:45 by mynodeus      ########   odam.nl         */
+/*   Updated: 2024/10/28 19:32:32 by mynodeus      ########   odam.nl         */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -27,6 +27,7 @@
 // acknowledgement https://gist.github.com/apsun/1e144bf7639b22ff0097171fa0f8c6b1
 
 // acknowledgement https://tjysdsg.github.io/libbacktrace/
+// acknowledgement https://stackoverflow.com/questions/11492149/passing-arguments-to-a-library-loaded-with-ld-preload
 
 // Function pointer to hold the original malloc
 static void *(*real_malloc)(size_t) = NULL;
@@ -34,6 +35,8 @@ static int (*main_orig)(int, char **, char **);
 static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 static struct s_data * data_ptr = NULL;
 struct backtrace_state *state;
+static int	debug_flag = 0;
+static int	print_bt = 0;
 
 #define BT_BUF_SIZE 100
 
@@ -42,7 +45,7 @@ void	debug(char *format, ...)
 {
 	va_list	ptr;
 
-	if (data_ptr->debug == 1)
+	if (debug_flag == 1)
 	{
 		va_start(ptr, format);
 		vdprintf(2, format, ptr);
@@ -63,6 +66,10 @@ void __attribute__((constructor)) init_malloc()
 			const char *error_msg = "Error in dlsym for malloc\n";
 			write(STDERR_FILENO, error_msg, sizeof(error_msg));
 		}
+		if(getenv("DEBUG"))
+			debug_flag = 1;
+		if(getenv("PRINT_BT"))
+			print_bt = 1;
 	}
 	pthread_mutex_unlock(&lock);
 }
@@ -72,8 +79,8 @@ void __attribute__((constructor)) init_malloc()
 void __attribute__((destructor)) finalize() 
 {
 	pthread_mutex_lock(&lock);
-	if (data_ptr->debug)
-		// write (STDOUT_FILENO, RED "destructor\n" RESET, 16);
+	if (debug_flag)
+		write (STDOUT_FILENO, RED "destructor\n" RESET, 16);
 	pthread_mutex_unlock(&lock);
 }
 
@@ -144,7 +151,7 @@ void	print_backtrace(t_mallocs *node)
 	fprintf(stderr, RED "malloc #%d unprotected\n" RESET, node->num);
 	for (int j = 1; node->backtrace[j] != NULL; j++)
 	{
-		if (data_ptr->print_bt)
+		if (print_bt)
 			fprintf(stderr, MAG "      %s" RESET, node->backtrace[j]);
 	}
 }

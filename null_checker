@@ -1,0 +1,113 @@
+#!/bin/bash
+#https://stackoverflow.com/questions/8779951/how-do-i-run-a-shell-script-without-using-sh-or-bash-commands
+
+RED="\x1B[31m"
+GRN="\x1B[1;32m"
+YEL="\x1B[33m"
+BLU="\x1B[34m"
+MAG="\x1B[35m"
+BMAG="\x1B[1;35m"
+CYN="\x1B[36m"
+BCYN="\x1B[1;36m"
+WHT="\x1B[37m"
+RESET="\x1B[0m"
+LINEP="\033[40G"
+
+#usage function
+usage() {
+	cat <<EOF
+Usage: $0 [options] [--] [file...]
+
+Arguments:
+
+  -h, --help
+	Display this usage message and exit.
+
+  -x, --exe
+	This is the program that will be run with the null_checker.
+	if this is not set, then the program will not run. Needs to be
+	absolute or relevant path to executable.
+
+  -d, --debug
+	This will run the null_checker in debug mode. This will
+	print internal debug messages
+
+  -p, --print-bt
+	This will print stack/backtrace information over where in the 
+	executable there was an error.
+
+EOF
+}
+
+# handy logging and error handling functions
+log() { printf '%s\n' "$*"; }
+error() { log "ERROR: $*" >&2; }
+fatal() { error "$*"; exit 1; }
+usage_fatal() { error "$*"; usage >&2; exit 1; }
+
+debug=0
+print_bt=0
+args=""
+
+# parse options
+while [ "$#" -gt 0 ]; do
+	arg=$1
+	case $1 in
+		# convert "--opt=the value" to --opt "the value".
+		# the quotes around the equals sign is to work around a
+		# bug in emacs' syntax parsing
+		--*'='*)
+		shift;
+		set -- "${arg%%=*}" "${arg#*=}" "$@";
+		continue;;
+		-x|--exe)
+		exe=$2
+		shift
+		;;
+		-d|--debug)
+		debug=1
+		shift
+		;;
+		-b|--print-bt)
+		print_bt=1
+		shift
+		;;
+		-h|--help)
+		usage;
+		exit 0
+		;;
+		--)
+		shift;
+		break
+		;;
+		-*)
+		usage_fatal "unknown option:'$1'"
+		;;
+		*)
+		break
+		;; # reached the list of file names
+	esac
+done
+
+debug_arg="DEBUG=1"
+pbt_arg="PRINT_BT=1"
+
+
+if [[ -z $exe ]]; then
+usage_fatal "no executable set"
+fi
+
+if [[ ! -f $exe ]]; then
+usage_fatal "file does not exist"
+fi
+
+if [[ $debug == 1 ]]; then
+export $debug_arg
+fi
+
+if [[ $print_bt == 1 ]]; then
+export $pbt_arg
+fi
+
+make -C ./ re
+LD_PRELOAD=./zaphod.so $exe
