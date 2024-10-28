@@ -6,7 +6,7 @@
 /*   By: spenning <spenning@student.codam.nl>         +#+                     */
 /*                                                   +#+                      */
 /*   Created: 2024/08/30 15:42:45 by spenning      #+#    #+#                 */
-/*   Updated: 2024/10/28 17:03:34 by mynodeus      ########   odam.nl         */
+/*   Updated: 2024/10/28 17:43:43 by mynodeus      ########   odam.nl         */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -112,14 +112,13 @@ static int full_callback (void *data, uintptr_t pc, const char *pathname, int li
 };
 
 
-void print_backtrace(void)
+void add_backtrace(t_mallocs *node)
 {
 	int nptrs;
 	void *buffer[BT_BUF_SIZE];
 	char **strings;
 
 	nptrs = backtrace(buffer, BT_BUF_SIZE);
-	fprintf(stderr, "backtrace() returned %d addresses\n", nptrs);
 	/* The call backtrace_symbols_fd(buffer, nptrs, STDOUT_FILENO)
 			would produce similar output to the following: */
 	strings = backtrace_symbols(buffer, nptrs);
@@ -128,10 +127,15 @@ void print_backtrace(void)
 		perror("backtrace_symbols");
 		exit(EXIT_FAILURE);
 	}
-	for (int j = 0; j < nptrs; j++)
+	node->backtrace = strings;
+	node->nptrs=nptrs;
+}
+
+void	print_backtrace(t_mallocs *node)
+{
+	for (int j = 0; j < node->nptrs; j++)
 	{
-		fprintf(stderr, "%s\n", strings[j]);
-		// free(strings);
+		fprintf(stderr, "%s\n", node->backtrace[j]);
 	}
 }
 
@@ -142,6 +146,7 @@ void *malloc(size_t size)
 	void		*ret;
 	static int	internal_malloc = 0;
 	int i;
+
 	i = 0;
 	t_mallocs *temp;
 	if (data_ptr->null_check == 1)
@@ -171,11 +176,13 @@ void *malloc(size_t size)
 	if (internal_malloc == 0)
 	{
 		internal_malloc = 1;
-		lstadd(data_ptr);
-		data_ptr->malloc_count++;
 		backtrace_full(state, 0, full_callback, error_callback, NULL);
-		// write(1, "\n", 1);
-		// print_backtrace();
+		if(lstadd(data_ptr))
+		{
+			perror("lstadd");
+			exit(1);
+		}
+		data_ptr->malloc_count++;
 		internal_malloc = 0;
 	}
 	ret = real_malloc(size);
@@ -234,12 +241,15 @@ void main_hook_null_check(int count, int argc, char **argv, char **envp)
 	t_mallocs *temp;
 	pid_t	*childs;
 
-
 	i = 0;
-
 	temp = data_ptr->mallocs;
-	childs = calloc(1, sizeof(childs)* count);
-	// create childs
+	childs = real_malloc(sizeof(childs)* count);
+	if (childs == NULL)
+	{
+		perror("null_check childs");
+		exit(EXIT_FAILURE);
+	}
+	bzero(childs, sizeof(childs)* count);
 	printf("create childs\n");
 	printf("count: %d\n", count);
 	while (i < count)
@@ -255,8 +265,11 @@ void main_hook_null_check(int count, int argc, char **argv, char **envp)
 	while (i < count)
 	{
 		if (wait_child(childs[i]))
+		{
 			printf("SEGFAULTTTT in %d\n", i);
-		data_ptr->exit_code = 1;
+			print_backtrace(lstgive_node(data_ptr, i));
+		}
+		data_ptr->exit_code = 2;
 		i++;
 	}
 }
