@@ -6,7 +6,7 @@
 /*   By: spenning <spenning@student.codam.nl>         +#+                     */
 /*                                                   +#+                      */
 /*   Created: 2024/08/30 15:42:45 by spenning      #+#    #+#                 */
-/*   Updated: 2024/10/28 17:43:43 by mynodeus      ########   odam.nl         */
+/*   Updated: 2024/10/28 19:15:01 by mynodeus      ########   odam.nl         */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -38,6 +38,19 @@ struct backtrace_state *state;
 #define BT_BUF_SIZE 100
 
 
+void	debug(char *format, ...)
+{
+	va_list	ptr;
+
+	if (data_ptr->debug == 1)
+	{
+		va_start(ptr, format);
+		vdprintf(2, format, ptr);
+		va_end(ptr);
+	}
+}
+
+
 // Constructor function to initialize real_malloc
 void __attribute__((constructor)) init_malloc() 
 {
@@ -59,7 +72,8 @@ void __attribute__((constructor)) init_malloc()
 void __attribute__((destructor)) finalize() 
 {
 	pthread_mutex_lock(&lock);
-	write (STDOUT_FILENO, "finalizing\n", 11);
+	if (data_ptr->debug)
+		write (STDOUT_FILENO, RED "destructor\n" RESET, 16);
 	pthread_mutex_unlock(&lock);
 }
 
@@ -90,13 +104,17 @@ static int full_callback (void *data, uintptr_t pc, const char *pathname, int li
 {
 	(void)pc;
 	static int unknown_count = 0;
+	t_mallocs *temp;
+	char *new;
+	char sprintf_buf[BT_BUF_SIZE];
+	int		len;
 	(void)data;
 
 	if (pathname != NULL || function != NULL || line_number != 0)
 	{
 		if (unknown_count)
 		{
-			fprintf(stderr, "    ...\n");
+			// fprintf(stderr, "    ...\n");
 			unknown_count = 0;
 		}
 		const char *filename = rindex(pathname, '/');
@@ -104,7 +122,16 @@ static int full_callback (void *data, uintptr_t pc, const char *pathname, int li
 			filename++;
 		else
 			filename = pathname;
-		fprintf(stderr, "  %s:%d -- %s\n", filename, line_number, function);
+		temp = lstlast(data_ptr->mallocs);
+		len = sprintf(sprintf_buf, "  %s:%d -- %s\n", filename, line_number, function);
+		new = calloc(1, len);
+		if (new == NULL)
+		{
+			perror("full_callback");
+			exit(EXIT_FAILURE);
+		}
+		sprintf(new, "  %s:%d -- %s\n", filename, line_number, function);
+		temp->backtrace = array_add(temp->backtrace, new);
 	}
 	else
 		unknown_count++;
@@ -112,30 +139,12 @@ static int full_callback (void *data, uintptr_t pc, const char *pathname, int li
 };
 
 
-void add_backtrace(t_mallocs *node)
-{
-	int nptrs;
-	void *buffer[BT_BUF_SIZE];
-	char **strings;
-
-	nptrs = backtrace(buffer, BT_BUF_SIZE);
-	/* The call backtrace_symbols_fd(buffer, nptrs, STDOUT_FILENO)
-			would produce similar output to the following: */
-	strings = backtrace_symbols(buffer, nptrs);
-	if (strings == NULL)
-	{
-		perror("backtrace_symbols");
-		exit(EXIT_FAILURE);
-	}
-	node->backtrace = strings;
-	node->nptrs=nptrs;
-}
-
 void	print_backtrace(t_mallocs *node)
 {
-	for (int j = 0; j < node->nptrs; j++)
+	fprintf(stderr, RED "malloc #%d unprotected\n" RESET, node->num);
+	for (int j = 1; node->backtrace[j] != NULL; j++)
 	{
-		fprintf(stderr, "%s\n", node->backtrace[j]);
+		fprintf(stderr, MAG "      %s" RESET, node->backtrace[j]);
 	}
 }
 
@@ -155,10 +164,10 @@ void *malloc(size_t size)
 		data_ptr->null_check_count++;
 		while (temp)
 		{
-			dprintf(2 ,"iteration %d in child %d nullcheck_count %d \n", i, getpid(), data_ptr->null_check_count);
+			// dprintf(2 ,"iteration %d in child %d nullcheck_count %d \n", i, getpid(), data_ptr->null_check_count);
 			if (temp->fail == 1 && data_ptr->null_check_count == temp->num)
 			{
-				dprintf(2 ,"here in malloc %d in child %d\n", temp->num, getpid());
+				// dprintf(2 ,"here in malloc %d in child %d\n", temp->num, getpid());
 				return (NULL);
 			}
 			i++;
@@ -176,12 +185,12 @@ void *malloc(size_t size)
 	if (internal_malloc == 0)
 	{
 		internal_malloc = 1;
-		backtrace_full(state, 0, full_callback, error_callback, NULL);
 		if(lstadd(data_ptr))
 		{
 			perror("lstadd");
 			exit(1);
 		}
+		backtrace_full(state, 0, full_callback, error_callback, NULL);
 		data_ptr->malloc_count++;
 		internal_malloc = 0;
 	}
@@ -192,11 +201,11 @@ void *malloc(size_t size)
 int main_hook_count(t_data *data, int argc, char **argv, char **envp)
 {
 	state = backtrace_create_state(NULL, 0, error_callback, NULL);
-	printf("--- Before main ---\n");
+	debug(BLU "--- Before main ---\n" RESET);
 	int ret = main_orig(argc, argv, envp);
-	printf("--- After main ----\n");
-	lstprint(data->mallocs);
-	printf("number one main() returned %d\n", ret);
+	debug(BLU "--- After main ----\n\n" RESET);
+	debug(GRN "first main() returned:\t%d\n" RESET, ret);
+	debug(GRN "malloc count:\t\t%d\n\n" RESET, data->malloc_count);
 	return (data->malloc_count);
 }
 
@@ -208,9 +217,9 @@ void	fork_tests(pid_t *child, t_mallocs data, int argc, char **argv, char **envp
 		exit(1);
 	if (*child == 0)
 	{
-		dprintf(2, "pid %d\n", getpid());
+		debug(BCYN"\tpid %d\n"RESET, getpid());
 		ret = main_orig(argc, argv, envp);
-		printf("number %d main() returned %d\n", data.num , ret);
+		debug(BCYN"\tnumber %d main() returned %d\n"RESET, data.num , ret);
 		exit(0);
 	}
 }
@@ -240,7 +249,15 @@ void main_hook_null_check(int count, int argc, char **argv, char **envp)
 	int i;
 	t_mallocs *temp;
 	pid_t	*childs;
-
+	int devnull;
+	int stdout_int;
+	
+	devnull = open("/dev/null", O_WRONLY);
+	if (devnull == -1)
+	{
+		perror("open in null_check");
+		exit(EXIT_FAILURE);
+	}
 	i = 0;
 	temp = data_ptr->mallocs;
 	childs = real_malloc(sizeof(childs)* count);
@@ -250,32 +267,48 @@ void main_hook_null_check(int count, int argc, char **argv, char **envp)
 		exit(EXIT_FAILURE);
 	}
 	bzero(childs, sizeof(childs)* count);
-	printf("create childs\n");
-	printf("count: %d\n", count);
+	debug(BMAG "\tcreating childs\n" RESET);
+	stdout_int = dup(STDOUT_FILENO);
+	if (stdout_int == -1)
+	{
+		perror("stdout_int in null_check");
+		exit(EXIT_FAILURE);
+	}
+	if (dup2(devnull, STDOUT_FILENO) == -1)
+	{
+		perror("dev/null in null_check");
+		exit(EXIT_FAILURE);
+	}
 	while (i < count)
 	{
-		dprintf(2, "child number %d\n", i);
+		debug(MAG "\tchild number %d\n" RESET, i);
 		temp->fail = 1;
 		fork_tests(&childs[i], *temp, argc, argv, envp);
 		temp->fail = 0;
 		temp = temp->next;
 		i++;
 	}
+	if (dup2(stdout_int, STDOUT_FILENO) == -1)
+	{
+		perror("restore stdout in null_check");
+		exit(EXIT_FAILURE);
+	}
+	if (close(stdout_int) == -1)
+	{
+		perror("close stdout_int in null_check");
+		exit(EXIT_FAILURE);
+	}
 	i = 0;
 	while (i < count)
 	{
 		if (wait_child(childs[i]))
 		{
-			printf("SEGFAULTTTT in %d\n", i);
 			print_backtrace(lstgive_node(data_ptr, i));
+			data_ptr->exit_code = 2;
 		}
-		data_ptr->exit_code = 2;
 		i++;
 	}
 }
-
-
-
 
 int main_hook(int argc, char **argv, char **envp)
 {
@@ -283,12 +316,17 @@ int main_hook(int argc, char **argv, char **envp)
 	t_data	data;
 
 	memset(&data, 0, sizeof(t_data));
+	data.debug = 1;
 	data_ptr = &data;
+	debug(RED "DEBUG MODE\n\n" RESET);
 	ret = main_hook_count(&data, argc, argv, envp);
 	data.null_check = 1;
-	printf("going into null_check\n");
 	if (data.null_check)
+	{
+		debug(YEL "-- start null_check mode --\n" RESET);
 		main_hook_null_check(ret, argc, argv, envp);
+		debug(YEL "--- end null_check mode ---\n" RESET);
+	}
 	return (data_ptr->exit_code);
 }
 
