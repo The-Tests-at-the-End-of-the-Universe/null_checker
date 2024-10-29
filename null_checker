@@ -103,6 +103,13 @@ done
 debug_arg="DEBUG=1"
 pbt_arg="PRINT_BT=1"
 
+readelf -S $exe | grep "debug" &> /dev/null
+exit_code=$(echo $?)
+
+if [[ $exit_code != 0 ]]; then
+echo -e "${RED}program not compiled with -g${RESET}"
+exit 1
+fi
 
 if [[ -z $exe ]]; then
 usage_fatal "no executable set"
