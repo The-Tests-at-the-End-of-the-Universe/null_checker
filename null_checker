@@ -23,11 +23,6 @@ Arguments:
   -h, --help
 	Display this usage message and exit.
 
-  -x, --exe
-	This is the program that will be run with the null_checker.
-	if this is not set, then the program will not run. Needs to be
-	absolute or relevant path to executable.
-
   -d, --debug
 	This will run the null_checker in debug mode. This will
 	print internal debug messages
@@ -55,6 +50,7 @@ print_bt=0
 args=""
 ignore=""
 local_dir=$(dirname $0)
+exe=() 
 
 # parse options
 while [ "$#" -gt 0 ]; do
@@ -67,10 +63,6 @@ while [ "$#" -gt 0 ]; do
 		shift;
 		set -- "${arg%%=*}" "${arg#*=}" "$@";
 		continue;;
-		-x|--exe)
-		exe=$2
-		shift
-		;;
 		-d|--debug)
 		debug=1
 		shift
@@ -90,6 +82,10 @@ while [ "$#" -gt 0 ]; do
 		--)
 		shift;
 		break
+		;;
+		*) # Capture all remaining arguments here
+		exe+=("$1")
+		shift
 		;;
 		-*)
 		usage_fatal "unknown option:'$1'"
@@ -118,6 +114,8 @@ fi
 if [[ ! -f $exe ]]; then
 usage_fatal "file does not exist"
 fi
+
+exe=$(echo "${exe[@]}")
 
 if [[ $debug == 1 ]]; then
 export $debug_arg

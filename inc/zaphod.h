@@ -6,7 +6,7 @@
 /*   By: mynodeus <mynodeus@student.42.fr>            +#+                     */
 /*                                                   +#+                      */
 /*   Created: 2023/10/21 23:03:23 by spenning      #+#    #+#                 */
-/*   Updated: 2024/10/29 22:17:45 by mynodeus      ########   odam.nl         */
+/*   Updated: 2024/10/29 23:02:24 by mynodeus      ########   odam.nl         */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -24,6 +24,7 @@
 #include <sys/wait.h>
 #include <stdarg.h>
 #include <fcntl.h>
+#include <linux/limits.h>
 
 # define RED   "\x1B[31m"
 # define GRN   "\x1B[1;32m"

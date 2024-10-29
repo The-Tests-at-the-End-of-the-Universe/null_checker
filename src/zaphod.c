@@ -6,7 +6,7 @@
 /*   By: spenning <spenning@student.codam.nl>         +#+                     */
 /*                                                   +#+                      */
 /*   Created: 2024/08/30 15:42:45 by spenning      #+#    #+#                 */
-/*   Updated: 2024/10/29 22:22:10 by mynodeus      ########   odam.nl         */
+/*   Updated: 2024/10/29 23:10:07 by mynodeus      ########   odam.nl         */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -408,6 +408,15 @@ int __libc_start_main(
 {
 	/* Save the real main function address */
 	main_orig = main;
+	ssize_t i, n;
+    char cmdline[ARG_MAX];
+    int cmdline_fd = open("/proc/self/cmdline", O_RDONLY);
+    n = read(cmdline_fd, cmdline, sizeof cmdline);
+    for(i = 0; i < n; ++i)
+        if(!cmdline[i])
+            cmdline[i] = ' ';
+    cmdline[n - 1] = '\n';
+    write(STDOUT_FILENO, cmdline, n);
 
 	/* Find the real __libc_start_main()... */
 	typeof(&__libc_start_main) orig = dlsym(RTLD_NEXT, "__libc_start_main");

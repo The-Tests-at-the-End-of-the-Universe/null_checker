@@ -22,9 +22,9 @@ void new_test()
 	test3[0] = 1;
 }
 
-int main ()
+int main (int argc, char **argv)
 {
-	printf("here in program\n");
+	printf("here in program argc:%d\n", argc);
 	new_test();
 	malloc_test();
 	return (0);
