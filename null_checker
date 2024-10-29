@@ -31,6 +31,10 @@ Arguments:
 	This will print stack/backtrace information over where in the 
 	executable there was an error.
 
+  -e, --exit-code
+	This flag will set the exit code to the value set when an error is
+	encountered.
+
   -i <"arr">, --ignore  <"arr">
 	This flag passes together with an array of strings ignore mallocs
 	in the functions that are passed. It is used as follows
@@ -50,7 +54,8 @@ print_bt=0
 args=""
 ignore=""
 local_dir=$(dirname $0)
-exe=() 
+
+git submodule update --init --recursive
 
 # parse options
 while [ "$#" -gt 0 ]; do
@@ -71,6 +76,10 @@ while [ "$#" -gt 0 ]; do
 		print_bt=1
 		shift
 		;;
+		-e|--exit-code)
+		program_exitcode=$2
+		shift 2
+		;;
 		-i|--ignore)
 		ignore=$2
 		shift 2
@@ -82,10 +91,6 @@ while [ "$#" -gt 0 ]; do
 		--)
 		shift;
 		break
-		;;
-		*) # Capture all remaining arguments here
-		exe+=("$1")
-		shift
 		;;
 		-*)
 		usage_fatal "unknown option:'$1'"
@@ -99,7 +104,10 @@ done
 debug_arg="DEBUG=1"
 pbt_arg="PRINT_BT=1"
 
-readelf -S $exe | grep "debug" &> /dev/null
+exe=${@}
+exe_file=$1
+
+readelf -S $exe_file | grep "debug" &> /dev/null
 exit_code=$(echo $?)
 
 if [[ $exit_code != 0 ]]; then
@@ -107,15 +115,17 @@ echo -e "${RED}program not compiled with -g${RESET}"
 exit 1
 fi
 
-if [[ -z $exe ]]; then
+if [[ -z $exe_file ]]; then
 usage_fatal "no executable set"
 fi
 
-if [[ ! -f $exe ]]; then
+if [[ ! -f $exe_file ]]; then
 usage_fatal "file does not exist"
 fi
 
-exe=$(echo "${exe[@]}")
+if [[ ! -z $program_exitcode ]]; then
+export "EXIT_CODE=$program_exitcode"
+fi
 
 if [[ $debug == 1 ]]; then
 export $debug_arg

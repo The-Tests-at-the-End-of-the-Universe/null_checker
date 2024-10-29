@@ -6,7 +6,7 @@
 /*   By: spenning <spenning@student.codam.nl>         +#+                     */
 /*                                                   +#+                      */
 /*   Created: 2024/08/30 15:42:45 by spenning      #+#    #+#                 */
-/*   Updated: 2024/10/29 23:10:07 by mynodeus      ########   odam.nl         */
+/*   Updated: 2024/10/29 23:52:52 by mynodeus      ########   odam.nl         */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -38,6 +38,7 @@ struct backtrace_state *state;
 static int	debug_flag = 0;
 static int	print_bt = 0;
 char *ignore_funcs = NULL;
+int  fail_exit_code = 1;
 
 #define BT_BUF_SIZE 100
 
@@ -58,6 +59,7 @@ void	debug(char *format, ...)
 // Constructor function to initialize real_malloc
 void __attribute__((constructor)) init_malloc() 
 {
+	char *fail_exit;
 	pthread_mutex_lock(&lock);
 	if (real_malloc == NULL)
 	{
@@ -72,6 +74,9 @@ void __attribute__((constructor)) init_malloc()
 		if(getenv("PRINT_BT"))
 			print_bt = 1;
 		ignore_funcs = getenv("IGNORE");
+		fail_exit = getenv("EXIT_CODE");
+		if (fail_exit)
+			fail_exit_code = atoi(fail_exit);
 	}
 	pthread_mutex_unlock(&lock);
 }
@@ -372,7 +377,7 @@ void main_hook_null_check(int count, int argc, char **argv, char **envp)
 		if (wait_child(childs[i]))
 		{
 			print_backtrace(lstgive_node(data_ptr, i));
-			data_ptr->exit_code = 2;
+			data_ptr->exit_code = fail_exit_code;
 		}
 		i++;
 	}
