@@ -36,6 +36,11 @@ Arguments:
 	This will print stack/backtrace information over where in the 
 	executable there was an error.
 
+  -i <"arr">, --ignore  <"arr">
+	This flag passes together with an array of strings ignore mallocs
+	in the functions that are passed. It is used as follows
+	./null_checker -i "function1,main,strdup"
+
 EOF
 }
 
@@ -48,6 +53,7 @@ usage_fatal() { error "$*"; usage >&2; exit 1; }
 debug=0
 print_bt=0
 args=""
+ignore=""
 local_dir=$(dirname $0)
 
 # parse options
@@ -72,6 +78,10 @@ while [ "$#" -gt 0 ]; do
 		-b|--print-bt)
 		print_bt=1
 		shift
+		;;
+		-i|--ignore)
+		ignore=$2
+		shift 2
 		;;
 		-h|--help)
 		usage;
@@ -108,6 +118,11 @@ fi
 
 if [[ $print_bt == 1 ]]; then
 export $pbt_arg
+fi
+
+if [[ ! -z $ignore ]]; then
+	ignore="IGNORE=$ignore"
+	export $ignore
 fi
 
 make -C $local_dir re

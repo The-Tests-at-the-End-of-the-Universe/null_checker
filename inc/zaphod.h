@@ -6,7 +6,7 @@
 /*   By: mynodeus <mynodeus@student.42.fr>            +#+                     */
 /*                                                   +#+                      */
 /*   Created: 2023/10/21 23:03:23 by spenning      #+#    #+#                 */
-/*   Updated: 2024/10/28 19:28:34 by mynodeus      ########   odam.nl         */
+/*   Updated: 2024/10/29 22:17:45 by mynodeus      ########   odam.nl         */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -39,7 +39,8 @@
 typedef struct s_mallocs
 {
 	int					num; //number assigned to the malloc
-	char				**backtrace; // backtrace in which function this malloc was called
+	char				**backtrace; // backtrace in which function this malloc was called 
+	char				*malloc_calling_func; // function that called malloc related to node
 	int					fail; // if set to 1, then this malloc will return NULL instead of real pointer
 	struct s_mallocs	*next; // pointer to next malloc
 } t_mallocs;
@@ -65,6 +66,7 @@ void		lstdelone(t_mallocs *lst);
 void		lstclear(t_mallocs **lst);
 int			lstadd(t_data *data);
 void		lstprint(t_mallocs *lst);
+t_mallocs	*lst_second_last(t_mallocs	*lst);
 char		**array_add(char **arr, char *string);
 
 #endif

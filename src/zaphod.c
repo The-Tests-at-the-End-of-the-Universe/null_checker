@@ -6,7 +6,7 @@
 /*   By: spenning <spenning@student.codam.nl>         +#+                     */
 /*                                                   +#+                      */
 /*   Created: 2024/08/30 15:42:45 by spenning      #+#    #+#                 */
-/*   Updated: 2024/10/28 19:32:32 by mynodeus      ########   odam.nl         */
+/*   Updated: 2024/10/29 22:22:10 by mynodeus      ########   odam.nl         */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -37,6 +37,7 @@ static struct s_data * data_ptr = NULL;
 struct backtrace_state *state;
 static int	debug_flag = 0;
 static int	print_bt = 0;
+char *ignore_funcs = NULL;
 
 #define BT_BUF_SIZE 100
 
@@ -70,6 +71,7 @@ void __attribute__((constructor)) init_malloc()
 			debug_flag = 1;
 		if(getenv("PRINT_BT"))
 			print_bt = 1;
+		ignore_funcs = getenv("IGNORE");
 	}
 	pthread_mutex_unlock(&lock);
 }
@@ -129,16 +131,20 @@ static int full_callback (void *data, uintptr_t pc, const char *pathname, int li
 			filename++;
 		else
 			filename = pathname;
-		temp = lstlast(data_ptr->mallocs);
-		len = sprintf(sprintf_buf, "  %s:%d -- %s\n", filename, line_number, function);
-		new = calloc(1, len);
-		if (new == NULL)
+		if (data_ptr->mallocs)
+			temp = lstlast(data_ptr->mallocs);
+		if (temp)
 		{
-			perror("full_callback");
-			exit(EXIT_FAILURE);
+			len = sprintf(sprintf_buf, "  %s:%d -- %s\n", filename, line_number, function);
+			new = calloc(1, len);
+			if (new == NULL)
+			{
+				perror("full_callback");
+				exit(EXIT_FAILURE);
+			}
+			sprintf(new, "  %s:%d -- %s\n", filename, line_number, function);
+			temp->backtrace = array_add(temp->backtrace, new);
 		}
-		sprintf(new, "  %s:%d -- %s\n", filename, line_number, function);
-		temp->backtrace = array_add(temp->backtrace, new);
 	}
 	else
 		unknown_count++;
@@ -154,6 +160,53 @@ void	print_backtrace(t_mallocs *node)
 		if (print_bt)
 			fprintf(stderr, MAG "      %s" RESET, node->backtrace[j]);
 	}
+}
+
+int	check_backtrace()
+{
+	t_mallocs *temp;
+	char	*token;
+	char	*trim;
+	char	*str_dup;
+	int		token_count;
+	int		i;
+
+	i = 0;
+	token_count = 1;
+	if (!data_ptr->mallocs)
+		return (0);
+	temp = lstlast(data_ptr->mallocs);
+	temp->malloc_calling_func = strdup(strrchr(temp->backtrace[1], ' '));
+	temp->malloc_calling_func++;
+	trim = strchr(temp->malloc_calling_func, '\n');
+	trim[0] = 0;
+	if (!ignore_funcs)
+		return (0);
+	str_dup = strdup(ignore_funcs);
+	if (str_dup == NULL)
+	{
+		perror("str_dup in check_backtrace");
+		exit (1);
+	}
+	while (str_dup[i])
+	{
+		if (str_dup[i] == ',')
+			token_count++;
+		i++;
+	}
+	i = 0;
+	while (i < token_count)
+	{
+		token = __strtok_r(str_dup, ",", &str_dup);
+		debug(BLU "tokencount: %d token:%s func:%s\n" RESET, token_count, token, temp->malloc_calling_func);
+		if (!strncmp(token, temp->malloc_calling_func, strlen(temp->malloc_calling_func)))
+		{
+			debug(YEL "func: %s ignored\n" RESET, temp->malloc_calling_func);
+			return (1);
+		}
+		i++;
+	}
+	return (0);
 }
 
 // Overriding malloc
@@ -199,7 +252,14 @@ void *malloc(size_t size)
 			exit(1);
 		}
 		backtrace_full(state, 0, full_callback, error_callback, NULL);
-		data_ptr->malloc_count++;
+		if (check_backtrace())
+		{
+			lstdelone(lstlast(data_ptr->mallocs));
+			t_mallocs *second_last = lst_second_last(data_ptr->mallocs);
+			second_last->next = NULL;
+		}
+		else
+			data_ptr->malloc_count++;
 		internal_malloc = 0;
 	}
 	ret = real_malloc(size);
