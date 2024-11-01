@@ -6,7 +6,7 @@
 /*   By: spenning <spenning@student.codam.nl>         +#+                     */
 /*                                                   +#+                      */
 /*   Created: 2024/08/30 15:42:45 by spenning      #+#    #+#                 */
-/*   Updated: 2024/11/01 15:51:16 by spenning      ########   odam.nl         */
+/*   Updated: 2024/11/01 17:22:14 by spenning      ########   odam.nl         */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -376,6 +376,7 @@ void main_hook_null_check(int count, int argc, char **argv, char **envp)
 		{
 			print_backtrace(lstgive_node(data_ptr, i));
 			data_ptr->exit_code = fail_exit_code;
+			data_ptr->fails++;
 		}
 		i++;
 	}
@@ -389,7 +390,6 @@ int main_hook(int argc, char **argv, char **envp)
 	memset(&data, 0, sizeof(t_data));
 	data_ptr = &data;
 	data.pid = getpid();
-	write(2, "here\n", 5);
 	debug(RED "DEBUG MODE\n\n" RESET);
 	ret = main_hook_count(&data, argc, argv, envp);
 	data.null_check = 1;
@@ -397,6 +397,11 @@ int main_hook(int argc, char **argv, char **envp)
 	{
 		debug(YEL "-- start null_check mode --\n" RESET);
 		main_hook_null_check(ret, argc, argv, envp);
+		dprintf(2, GRN "malloc count:\t\t%d\n" RESET, data.malloc_count);
+		if (data.fails)
+			dprintf(2, RED "malloc fails:\t\t%d\n" RESET, data.fails);
+		else
+			dprintf(2, GRN "malloc fails:\t\t%d\n" RESET, data.fails);
 		debug(YEL "--- end null_check mode ---\n" RESET);
 	}
 	return (data_ptr->exit_code);
