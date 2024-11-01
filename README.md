@@ -16,5 +16,5 @@ to execute with a certain program
 
 ```sh
 cd null_checker
-./null_checker -x /path/to/an/executable --args-of-program
+./null_checker --args-of-null-checker /path/to/an/executable --args-of-program
 ```
