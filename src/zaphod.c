@@ -6,7 +6,7 @@
 /*   By: spenning <spenning@student.codam.nl>         +#+                     */
 /*                                                   +#+                      */
 /*   Created: 2024/08/30 15:42:45 by spenning      #+#    #+#                 */
-/*   Updated: 2024/11/01 17:22:14 by spenning      ########   odam.nl         */
+/*   Updated: 2024/11/01 18:03:44 by spenning      ########   odam.nl         */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -180,7 +180,9 @@ int	check_backtrace()
 	if (!data_ptr->mallocs)
 		return (0);
 	temp = lstlast(data_ptr->mallocs);
-	temp->malloc_calling_func = strdup(strrchr(temp->backtrace[1], ' '));
+	temp->malloc_calling_func = strdup(strrchr(temp->backtrace[0], ' '));
+	debug("temp->backtrace[0]: %s\n" ,temp->backtrace[0]);
+	debug("temp->backtrace[1]: %s\n" ,temp->backtrace[1]);
 	temp->malloc_calling_func++;
 	trim = strchr(temp->malloc_calling_func, '\n');
 	trim[0] = 0;
@@ -374,7 +376,7 @@ void main_hook_null_check(int count, int argc, char **argv, char **envp)
 	{
 		if (wait_child(childs[i]))
 		{
-			print_backtrace(lstgive_node(data_ptr, i));
+			print_backtrace(lstgive_node(data_ptr, i - 1));
 			data_ptr->exit_code = fail_exit_code;
 			data_ptr->fails++;
 		}
