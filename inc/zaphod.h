@@ -6,7 +6,7 @@
 /*   By: mynodeus <mynodeus@student.42.fr>            +#+                     */
 /*                                                   +#+                      */
 /*   Created: 2023/10/21 23:03:23 by spenning      #+#    #+#                 */
-/*   Updated: 2024/10/29 23:02:24 by mynodeus      ########   odam.nl         */
+/*   Updated: 2024/11/01 15:45:43 by spenning      ########   odam.nl         */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -25,6 +25,9 @@
 #include <stdarg.h>
 #include <fcntl.h>
 #include <linux/limits.h>
+#include <signal.h>
+#include <execinfo.h>
+#include <backtrace.h>
 
 # define RED   "\x1B[31m"
 # define GRN   "\x1B[1;32m"
@@ -49,6 +52,7 @@ typedef struct s_mallocs
 
 typedef struct s_data
 {
+	int					pid;
 	int					malloc_count; // amount of mallocs hijacked program called.
 	struct s_mallocs	*mallocs; // pointer to malloc linkedlist
 	int					null_check; // if set to 1, then program will run malloc test

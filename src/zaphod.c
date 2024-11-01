@@ -6,19 +6,13 @@
 /*   By: spenning <spenning@student.codam.nl>         +#+                     */
 /*                                                   +#+                      */
 /*   Created: 2024/08/30 15:42:45 by spenning      #+#    #+#                 */
-/*   Updated: 2024/10/29 23:52:52 by mynodeus      ########   odam.nl         */
+/*   Updated: 2024/11/01 15:51:16 by spenning      ########   odam.nl         */
 /*                                                                            */
 /* ************************************************************************** */
 
 #define _GNU_SOURCE         /* See feature_test_macros(7) */
-#include <dlfcn.h>
 #include <zaphod.h>
-#include <stdio.h>
-#include <string.h>
-#include <signal.h>
-#include <execinfo.h>
-#include <backtrace.h>
-#include <stdarg.h>
+
 
 // acknowledgement https://www.vishalchovatiya.com/hack-c-cpp-application-using-rtld-next-with-an-easy-example/
 // compilation 
@@ -39,8 +33,10 @@ static int	debug_flag = 0;
 static int	print_bt = 0;
 char *ignore_funcs = NULL;
 int  fail_exit_code = 1;
+static int	internal_malloc = 0;
 
 #define BT_BUF_SIZE 100
+
 
 
 void	debug(char *format, ...)
@@ -49,17 +45,17 @@ void	debug(char *format, ...)
 
 	if (debug_flag == 1)
 	{
+		internal_malloc = 1;
 		va_start(ptr, format);
 		vdprintf(2, format, ptr);
 		va_end(ptr);
+		internal_malloc = 0;
 	}
 }
-
 
 // Constructor function to initialize real_malloc
 void __attribute__((constructor)) init_malloc() 
 {
-	char *fail_exit;
 	pthread_mutex_lock(&lock);
 	if (real_malloc == NULL)
 	{
@@ -69,15 +65,18 @@ void __attribute__((constructor)) init_malloc()
 			const char *error_msg = "Error in dlsym for malloc\n";
 			write(STDERR_FILENO, error_msg, sizeof(error_msg));
 		}
-		if(getenv("DEBUG"))
-			debug_flag = 1;
-		if(getenv("PRINT_BT"))
-			print_bt = 1;
-		ignore_funcs = getenv("IGNORE");
-		fail_exit = getenv("EXIT_CODE");
-		if (fail_exit)
-			fail_exit_code = atoi(fail_exit);
 	}
+	char *fail_exit;
+	char *debug;
+	debug = secure_getenv("DEBUG");
+	if (debug)
+		debug_flag = 1;
+	if(secure_getenv("PRINT_BT"))
+		print_bt = 1;
+	ignore_funcs = secure_getenv("IGNORE");
+	fail_exit = secure_getenv("EXIT_CODE");
+	if (fail_exit)
+		fail_exit_code = atoi(fail_exit);
 	pthread_mutex_unlock(&lock);
 }
 
@@ -219,7 +218,6 @@ int	check_backtrace()
 void *malloc(size_t size)
 {
 	void		*ret;
-	static int	internal_malloc = 0;
 	int i;
 
 	i = 0;
@@ -390,6 +388,8 @@ int main_hook(int argc, char **argv, char **envp)
 
 	memset(&data, 0, sizeof(t_data));
 	data_ptr = &data;
+	data.pid = getpid();
+	write(2, "here\n", 5);
 	debug(RED "DEBUG MODE\n\n" RESET);
 	ret = main_hook_count(&data, argc, argv, envp);
 	data.null_check = 1;
@@ -413,16 +413,6 @@ int __libc_start_main(
 {
 	/* Save the real main function address */
 	main_orig = main;
-	ssize_t i, n;
-    char cmdline[ARG_MAX];
-    int cmdline_fd = open("/proc/self/cmdline", O_RDONLY);
-    n = read(cmdline_fd, cmdline, sizeof cmdline);
-    for(i = 0; i < n; ++i)
-        if(!cmdline[i])
-            cmdline[i] = ' ';
-    cmdline[n - 1] = '\n';
-    write(STDOUT_FILENO, cmdline, n);
-
 	/* Find the real __libc_start_main()... */
 	typeof(&__libc_start_main) orig = dlsym(RTLD_NEXT, "__libc_start_main");
 
