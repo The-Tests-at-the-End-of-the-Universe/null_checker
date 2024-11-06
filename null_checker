@@ -140,5 +140,7 @@ if [[ ! -z $ignore ]]; then
 	export $ignore
 fi
 
-make -C $local_dir re
+if [[ ! -z $local_dir/zaphod.so ]]; then
+	make -C $local_dir re &> /dev/null 
+fi
 LD_PRELOAD=$local_dir/zaphod.so $exe
