@@ -6,7 +6,7 @@
 /*   By: spenning <spenning@student.codam.nl>         +#+                     */
 /*                                                   +#+                      */
 /*   Created: 2024/08/30 15:42:45 by spenning      #+#    #+#                 */
-/*   Updated: 2024/11/01 18:03:44 by spenning      ########   odam.nl         */
+/*   Updated: 2024/11/06 15:09:31 by spenning      ########   odam.nl         */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -26,6 +26,7 @@
 // Function pointer to hold the original malloc
 static void *(*real_malloc)(size_t) = NULL;
 static int (*main_orig)(int, char **, char **);
+static void (*real__exit)(int) __attribute__((noreturn));
 static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 static struct s_data * data_ptr = NULL;
 struct backtrace_state *state;
@@ -34,6 +35,11 @@ static int	print_bt = 0;
 char *ignore_funcs = NULL;
 int  fail_exit_code = 1;
 static int	internal_malloc = 0;
+static int exit_code = 0;
+static int should_exit = 0;
+static int real_argc;
+static char** real_argv;
+static char** real_envp;
 
 #define BT_BUF_SIZE 100
 
@@ -56,6 +62,7 @@ void	debug(char *format, ...)
 // Constructor function to initialize real_malloc
 void __attribute__((constructor)) init_malloc() 
 {
+	const char *errmsg;
 	pthread_mutex_lock(&lock);
 	if (real_malloc == NULL)
 	{
@@ -64,6 +71,16 @@ void __attribute__((constructor)) init_malloc()
 		{
 			const char *error_msg = "Error in dlsym for malloc\n";
 			write(STDERR_FILENO, error_msg, sizeof(error_msg));
+		}
+	}
+	if (real__exit == NULL)
+	{
+		real__exit = dlsym(RTLD_NEXT, "exit");
+		(void)dlerror();
+		errmsg = dlerror();
+		if (errmsg) {
+			fprintf(stderr, "dlsym: exit: %s\n", errmsg);
+			abort();
 		}
 	}
 	char *fail_exit;
@@ -181,8 +198,8 @@ int	check_backtrace()
 		return (0);
 	temp = lstlast(data_ptr->mallocs);
 	temp->malloc_calling_func = strdup(strrchr(temp->backtrace[0], ' '));
-	debug("temp->backtrace[0]: %s\n" ,temp->backtrace[0]);
-	debug("temp->backtrace[1]: %s\n" ,temp->backtrace[1]);
+	// debug(YEL "temp->backtrace[0]: %s\n"RESET ,temp->backtrace[0]);
+	// debug(YEL "temp->backtrace[1]: %s\n"RESET ,temp->backtrace[1]);
 	temp->malloc_calling_func++;
 	trim = strchr(temp->malloc_calling_func, '\n');
 	trim[0] = 0;
@@ -214,6 +231,8 @@ int	check_backtrace()
 	}
 	return (0);
 }
+
+
 
 // Overriding malloc
 // take out GI_UI_FILE_DOALLOCATE malloc
@@ -383,32 +402,51 @@ void main_hook_null_check(int count, int argc, char **argv, char **envp)
 		i++;
 	}
 }
+int main_hook_test(t_data *data, int ret, int argc, char **argv, char **envp)
+{
+	if (should_exit)
+	{
+		ret = exit_code;
+	}
+	(void)ret;
+	main_hook_null_check(data->malloc_count, argc, argv, envp);
+	dprintf(2, GRN "malloc count:\t\t%d\n" RESET, data->malloc_count);
+	if (data->fails)
+		dprintf(2, RED "malloc fails:\t\t%d\n" RESET, data->fails);
+	else
+		dprintf(2, GRN "malloc fails:\t\t%d\n" RESET, data->fails);
+	debug(YEL "--- end null_check mode ---\n" RESET);
+	real__exit(data_ptr->exit_code);
+}
 
 int main_hook(int argc, char **argv, char **envp)
 {
 	int ret;
 	t_data	data;
 
+	real_envp = envp;
+	data.null_check = 1;
 	memset(&data, 0, sizeof(t_data));
 	data_ptr = &data;
 	data.pid = getpid();
 	debug(RED "DEBUG MODE\n\n" RESET);
 	ret = main_hook_count(&data, argc, argv, envp);
-	data.null_check = 1;
-	if (data.null_check)
-	{
-		debug(YEL "-- start null_check mode --\n" RESET);
-		main_hook_null_check(ret, argc, argv, envp);
-		dprintf(2, GRN "malloc count:\t\t%d\n" RESET, data.malloc_count);
-		if (data.fails)
-			dprintf(2, RED "malloc fails:\t\t%d\n" RESET, data.fails);
-		else
-			dprintf(2, GRN "malloc fails:\t\t%d\n" RESET, data.fails);
-		debug(YEL "--- end null_check mode ---\n" RESET);
-	}
-	return (data_ptr->exit_code);
+	return(main_hook_test(&data,ret, argc, argv, envp));
 }
 
+void
+exit(int status)
+{
+	int ret;
+
+	if (should_exit)
+		real__exit(status);
+	exit_code = status;
+	should_exit = 1;
+	debug(RED "exit called with value: %d\n", status);
+	ret = main_hook_test(data_ptr, status, real_argc, real_argv, real_envp);
+	real__exit(ret);
+}
 int __libc_start_main(
 	int (*main)(int, char **, char **),
 	int argc,
@@ -422,7 +460,8 @@ int __libc_start_main(
 	main_orig = main;
 	/* Find the real __libc_start_main()... */
 	typeof(&__libc_start_main) orig = dlsym(RTLD_NEXT, "__libc_start_main");
-
+	real_argc = argc;
+	real_argv = argv;
 	/* ... and call it with our custom main function */
 	return (orig(main_hook, argc, argv, init, fini, rtld_fini, stack_end));
 }
