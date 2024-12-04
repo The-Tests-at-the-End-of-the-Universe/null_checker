@@ -13,13 +13,16 @@ void malloc_test()
 	// test2 = malloc(20);
 	// test2 = malloc(20);
 	// test2 = malloc(20);
-	test2[0] = 0;
 }
 void new_test()
 {
 	char *test3;
 	test3 = malloc(20);
-	test3[0] = 1;
+	for (int i = 0; i < 90; i++)
+	{
+		malloc(100);
+	}
+	
 }
 
 int main (int argc, char **argv)
@@ -27,5 +30,6 @@ int main (int argc, char **argv)
 	printf("here in program argc:%d\n", argc);
 	new_test();
 	malloc_test();
+	printf("here\n");
 	return (0);
 }
