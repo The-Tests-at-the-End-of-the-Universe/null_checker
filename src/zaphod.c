@@ -6,7 +6,7 @@
 /*   By: spenning <spenning@student.codam.nl>         +#+                     */
 /*                                                   +#+                      */
 /*   Created: 2024/08/30 15:42:45 by spenning      #+#    #+#                 */
-/*   Updated: 2024/12/04 17:13:11 by spenning      ########   odam.nl         */
+/*   Updated: 2024/12/04 17:29:22 by spenning      ########   odam.nl         */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -327,6 +327,9 @@ void main_hook_count_poll (void)
 	t_mallocs	*temp;
 	char		*mfc_str;
 	struct		pollfd poll_malloc;
+	int			wstatus;
+	int			got_pid;
+	int			exit_status;
 
 	
 	bzero(&poll_malloc, sizeof(poll_malloc));
@@ -394,13 +397,28 @@ void main_hook_count_poll (void)
 			lstadd_back(data_ptr->mallocs, new);
 			data_ptr->malloc_count++;
 		}
+		else 
+		{
+			got_pid = waitpid(pid, &wstatus, WNOHANG);
+			if ((got_pid == -1) && (errno != EINTR))
+			{
+				perror("waitpid in main_hook_count_poll");
+				exit(1);
+			}
+			else if (got_pid && WIFEXITED(wstatus))
+				exit_status = WEXITSTATUS(wstatus);
+			else if (got_pid && WIFSIGNALED(wstatus))
+			{
+				if (WTERMSIG(wstatus) == SIGSEGV)
+					perror("child segfaulted");
+			}
+		}
 	}
 }
 
 
 int main_hook_count(t_data *data, int argc, char **argv, char **envp)
 {
-	int wstatus;
 	pipe(&pipefd);
 	pid = fork();
 	if (pid == -1)
@@ -438,6 +456,7 @@ int main_hook_count(t_data *data, int argc, char **argv, char **envp)
 			perror("close error fd[1] in child malloc");
 			exit(1);
 		}
+		exit(0);
 	}
 	else
 	{
@@ -446,7 +465,6 @@ int main_hook_count(t_data *data, int argc, char **argv, char **envp)
 			perror("close error fd[0] in parent malloc");
 			exit(1);
 		}
-		waitpid(pid, &wstatus, 0);
 	}
 	return (data->malloc_count);
 }
