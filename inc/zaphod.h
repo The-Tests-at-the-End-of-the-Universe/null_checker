@@ -6,7 +6,7 @@
 /*   By: mynodeus <mynodeus@student.42.fr>            +#+                     */
 /*                                                   +#+                      */
 /*   Created: 2023/10/21 23:03:23 by spenning      #+#    #+#                 */
-/*   Updated: 2024/11/01 15:52:11 by spenning      ########   odam.nl         */
+/*   Updated: 2024/12/04 17:02:51 by spenning      ########   odam.nl         */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -28,6 +28,7 @@
 #include <signal.h>
 #include <execinfo.h>
 #include <backtrace.h>
+#include <poll.h>
 
 # define RED   "\x1B[31m"
 # define GRN   "\x1B[1;32m"
@@ -40,9 +41,11 @@
 # define WHT   "\x1B[37m"
 # define RESET "\x1B[0m"
 
+//TODO:change struct to have fixed amount of space
 typedef struct s_mallocs
 {
 	int					num; //number assigned to the malloc
+	int					backtrace_size;
 	char				**backtrace; // backtrace in which function this malloc was called 
 	char				*malloc_calling_func; // function that called malloc related to node
 	int					fail; // if set to 1, then this malloc will return NULL instead of real pointer

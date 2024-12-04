@@ -6,7 +6,7 @@
 /*   By: spenning <spenning@student.codam.nl>         +#+                     */
 /*                                                   +#+                      */
 /*   Created: 2024/08/30 15:42:45 by spenning      #+#    #+#                 */
-/*   Updated: 2024/11/01 18:03:44 by spenning      ########   odam.nl         */
+/*   Updated: 2024/12/04 17:13:11 by spenning      ########   odam.nl         */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -22,6 +22,8 @@
 
 // acknowledgement https://tjysdsg.github.io/libbacktrace/
 // acknowledgement https://stackoverflow.com/questions/11492149/passing-arguments-to-a-library-loaded-with-ld-preload
+// acknowledgement https://www.youtube.com/watch?v=rE1n-4z_n0Y
+// acknowledgement https://www.youtube.com/watch?v=O-yMs3T0APU
 
 // Function pointer to hold the original malloc
 static void *(*real_malloc)(size_t) = NULL;
@@ -31,6 +33,8 @@ static struct s_data * data_ptr = NULL;
 struct backtrace_state *state;
 static int	debug_flag = 0;
 static int	print_bt = 0;
+static int	pipefd[2] = {0,0};
+pid_t		pid = 0;
 char *ignore_funcs = NULL;
 int  fail_exit_code = 1;
 static int	internal_malloc = 0;
@@ -148,6 +152,7 @@ static int full_callback (void *data, uintptr_t pc, const char *pathname, int li
 			}
 			sprintf(new, "  %s:%d -- %s\n", filename, line_number, function);
 			temp->backtrace = array_add(temp->backtrace, new);
+			temp->backtrace_size++;
 		}
 	}
 	else
@@ -219,8 +224,16 @@ int	check_backtrace()
 // take out GI_UI_FILE_DOALLOCATE malloc
 void *malloc(size_t size)
 {
+	int			i;
 	void		*ret;
-	int i;
+	int			len;
+	t_mallocs	*temp;
+	t_mallocs	*new;
+	char		**bt;
+	char		*bt_str;
+	char		*mfc_str;
+	int			wstatus;
+
 
 	i = 0;
 	t_mallocs *temp;
@@ -251,34 +264,190 @@ void *malloc(size_t size)
 	if (internal_malloc == 0)
 	{
 		internal_malloc = 1;
-		if(lstadd(data_ptr))
+		if (pid == 0)
 		{
-			perror("lstadd");
-			exit(1);
-		}
-		backtrace_full(state, 0, full_callback, error_callback, NULL);
-		if (check_backtrace())
-		{
-			lstdelone(lstlast(data_ptr->mallocs));
-			t_mallocs *second_last = lst_second_last(data_ptr->mallocs);
-			second_last->next = NULL;
-		}
-		else
+			debug(BCYN"\tmalloc child pid %d\n"RESET, getpid());
+			if(lstadd(data_ptr))
+			{
+				perror("lstadd");
+				exit(1);
+			}
+			backtrace_full(state, 0, full_callback, error_callback, NULL);
+			if (check_backtrace())
+			{
+				lstdelone(lstlast(data_ptr->mallocs));
+				t_mallocs *second_last = lst_second_last(data_ptr->mallocs);
+				second_last->next = NULL;
+			}
+			temp = lstlast(data_ptr->mallocs);
+			if (write(pipefd[1], &temp->backtrace_size, sizeof(temp->backtrace_size)) == -1)
+			{
+				perror("write error in backtrace_size:child malloc");
+				exit(1);
+			}
+			for (int i = 0; i < temp->backtrace_size; i++)
+			{
+				len = strlen(temp->backtrace[i]);
+				if (write(pipefd[1], &len, sizeof(int)) == -1)
+				{
+					perror("write error in len_of_str:child malloc");
+					exit(1);
+				}
+				if (write(pipefd[1], temp->backtrace[i], len) == -1)
+				{
+					perror("write error in str:child malloc");
+					exit(1);
+				}
+			}
+			if (write(pipefd[1], &temp, sizeof(temp)) == -1)
+			{
+				perror("write error in child malloc");
+				exit(1);
+			}
+			len = strlen(temp->malloc_calling_func);
+			if (write(pipefd[1], &len, sizeof(int)) == -1)
+			{
+				perror("write error in len_of_mcf:child malloc");
+				exit(1);
+			}
 			data_ptr->malloc_count++;
+		}
 		internal_malloc = 0;
 	}
 	ret = real_malloc(size);
 	return (ret); // Call the original malloc
 }
 
+void main_hook_count_poll (void)
+{
+	t_mallocs	*new;
+	char		**bt;
+	char		*bt_str;
+	int			len;
+	t_mallocs	*temp;
+	char		*mfc_str;
+	struct		pollfd poll_malloc;
+
+	
+	bzero(&poll_malloc, sizeof(poll_malloc));
+	poll_malloc.fd = pipefd[0];
+	poll_malloc.events = POLLIN;
+
+	while(1)
+	{
+		poll(&poll_malloc, 1, 100);
+		if (poll_malloc.revents & POLLIN)
+		{
+			new = calloc(1, sizeof(t_mallocs));
+			if (new == NULL)
+			{
+				perror("malloc error in parent");
+				exit (1);
+			}
+			read(pipefd[0], &new->backtrace_size, sizeof(new->backtrace_size));
+			bt = calloc(new->backtrace_size, sizeof(char*));
+			if (bt == NULL)
+			{
+				perror("malloc error in backtrace:parent");
+				exit (1);
+			}
+			for (int i = 0; i < new->backtrace_size; i++)
+			{
+				if (read(pipefd[0], &len, sizeof(int)) == -1)
+				{
+					perror("read error in len_of_str:parent malloc");
+					exit(1);
+				}
+				bt_str = calloc(1, len);
+				if (bt_str == NULL)
+				{
+					perror("malloc error in backtrace_str:parent");
+					exit (1);
+				}
+				if (read(pipefd[0], bt_str, len) == -1)
+				{
+					perror("read error in str:child malloc");
+					exit(1);
+				}
+				bt[i] = bt_str;
+			}
+			read(pipefd[0], temp, sizeof(temp));
+			memcpy(new, temp, sizeof(temp));
+			if (read(pipefd[0], &len, sizeof(int)) == -1)
+			{
+				perror("read error in str:child malloc");
+				exit(1);
+			}
+			mfc_str = calloc(1, len);
+			if (mfc_str == NULL)
+			{
+				perror("malloc error in mfc_str:child malloc");
+				exit(1);
+			}
+			if (read(pipefd[0], mfc_str, len) == -1)
+			{
+				perror("read error in mfc_str:child malloc");
+				exit(1);
+			}
+			new->backtrace = bt;
+			new->malloc_calling_func = mfc_str;
+			lstadd_back(data_ptr->mallocs, new);
+			data_ptr->malloc_count++;
+		}
+	}
+}
+
+
 int main_hook_count(t_data *data, int argc, char **argv, char **envp)
 {
-	state = backtrace_create_state(NULL, 0, error_callback, NULL);
-	debug(BLU "--- Before main ---\n" RESET);
-	int ret = main_orig(argc, argv, envp);
-	debug(BLU "--- After main ----\n\n" RESET);
-	debug(GRN "first main() returned:\t%d\n" RESET, ret);
-	debug(GRN "malloc count:\t\t%d\n\n" RESET, data->malloc_count);
+	int wstatus;
+	pipe(&pipefd);
+	pid = fork();
+	if (pid == -1)
+	{
+		perror("fork error in main_hook_count");
+		exit(1);
+	}
+	if (pid == 0)
+	{
+		if (close(pipefd[0]))
+		{
+			perror("close error fd[0] in child malloc");
+			exit(1);
+		}
+		state = backtrace_create_state(NULL, 0, error_callback, NULL);
+		debug(BLU "--- Before main ---\n" RESET);
+		int ret = main_orig(argc, argv, envp);
+		debug(BLU "--- After main ----\n\n" RESET);
+		debug(GRN "first main() returned:\t%d\n" RESET, ret);
+		debug(GRN "malloc count:\t\t%d\n\n" RESET, data->malloc_count);
+	}
+	else 
+	{
+		if (close(pipefd[1]))
+		{
+				perror("close error fd[1] in parent malloc");
+				exit(1);
+		};
+		main_hook_count_poll();
+	}
+	if (pid == 0)
+	{
+		if (close(pipefd[1]))
+		{
+			perror("close error fd[1] in child malloc");
+			exit(1);
+		}
+	}
+	else
+	{
+		if (close(pipefd[0]))
+		{
+			perror("close error fd[0] in parent malloc");
+			exit(1);
+		}
+		waitpid(pid, &wstatus, 0);
+	}
 	return (data->malloc_count);
 }
 
@@ -394,8 +563,8 @@ int main_hook(int argc, char **argv, char **envp)
 	data.pid = getpid();
 	debug(RED "DEBUG MODE\n\n" RESET);
 	ret = main_hook_count(&data, argc, argv, envp);
-	data.null_check = 1;
 	if (data.null_check)
+	data.null_check = 1;
 	{
 		debug(YEL "-- start null_check mode --\n" RESET);
 		main_hook_null_check(ret, argc, argv, envp);
